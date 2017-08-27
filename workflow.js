@@ -1,7 +1,7 @@
 const btoa = require(`btoa`);
 const request = require(`request-promise`);
 
-const token = `b774b8e466ba0da337ed7d7634971c0d390ac20b`;
+const token = ``;
 
 const options = {
 	base: `https://api.github.com`,
@@ -15,6 +15,13 @@ const options = {
 
 const Commit = require(`./commit`)(options);
 const PullReq = require(`./pullreq`)(options);
+const envEnum = {
+	dev: 1,
+	qa: 2,
+	master: 3
+}
+
+const wait = require(`./wait-promise`);
 
 module.exports = {
 
@@ -23,13 +30,25 @@ module.exports = {
 		return request(Commit.newFile({
 			message: `System generated commit on ${new Date(Date.now())}`,
 			content: btoa(contentStr),
-			path: path
+			path: path,
+			branch: `dev` // always!
 		}))
 			.then(jsonRes => jsonRes)
 			.catch(err => console.error(err));
 	},
 
 	promote: (src, dest) => {
+		if (! envEnum[src] || !envEnum[dest]) {
+			console.log(`'src' and 'dest' must be provided`);
+			return;
+		}
+
+		if (envEnum[src] != envEnum[dest] - 1) {
+			console.log(`Cannot promote from ${src} to ${dest}. Please check 'source' and 'dest'.`);
+			return;
+		}
+
+
 		// create pr
 		return request(PullReq.create({
 			title: `System generated PR: Promoting data from ${src} to ${dest}.`,
@@ -38,7 +57,7 @@ module.exports = {
 			body: `This PR was auto created at ${new Date(Date.now())}`,
 			maintainer_can_modify: true
 		}))
-			.then(jsonRes => jsonRes.number)
+			.then(jsonRes => wait(5000)(jsonRes.number))
 
 			// then merge pr
 			.then(number => request(PullReq.merge({
